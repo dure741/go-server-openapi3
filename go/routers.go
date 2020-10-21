@@ -49,10 +49,10 @@ func NewRouter() *mux.Router {
 	//swagger ui使用，先运行swaggerui
 	router.PathPrefix("/apidoc").Handler(http.StripPrefix("/apidoc", http.FileServer(http.Dir("./dist"))))
 	router.Use(setupGlobalMiddlewareSwagger)
-	//swagger json返回，(不通过验证)
-	router.PathPrefix("/swagger.json").HandlerFunc(SwaggerJson)
+	//swagger json返回，(需要通过验证)
+	//router.PathPrefix("/swagger.json").HandlerFunc(SwaggerJson)
 	//添加验证，后进行validate
-	//router.Use(openApiRulesValidation)
+	router.Use(openApiRulesValidation)
 	return router
 }
 
@@ -90,12 +90,12 @@ var routes = Routes{
 	},
 
 	//保留，此声明route会被validate检测
-	// Route{
-	// 	"SwaggerJson",
-	// 	strings.ToUpper("Get"),
-	// 	"/swagger.json",
-	// 	SwaggerJson,
-	// },
+	Route{
+		"SwaggerJson",
+		strings.ToUpper("Get"),
+		"/swagger.json",
+		SwaggerJson,
+	},
 }
 
 func openApiRulesValidation(next http.Handler) http.Handler {
@@ -129,7 +129,7 @@ func setupGlobalMiddlewareSwagger(handler http.Handler) http.Handler {
 	swagserve := swagserver.New(
 		option.Path("/apidoc"),
 		option.SwaggerSpecURL("/swagger.json"),
-		option.Theme(theme.Material),
+		option.Theme(theme.Standard),
 	)
 	return swagserve(handler)
 }
