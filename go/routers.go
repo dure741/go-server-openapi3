@@ -10,10 +10,13 @@
 package swagger
 
 import (
+	"api3server/staticweb"
 	"context"
 	"fmt"
 	"net/http"
 	"strings"
+
+	assetfs "github.com/elazarl/go-bindata-assetfs"
 
 	"github.com/syllabix/swagserver/option"
 	"github.com/syllabix/swagserver/theme"
@@ -47,7 +50,11 @@ func NewRouter() *mux.Router {
 	}
 
 	//swagger ui使用，先运行swaggerui
-	router.PathPrefix("/apidoc").Handler(http.StripPrefix("/apidoc", http.FileServer(http.Dir("./dist"))))
+	router.PathPrefix("/apidoc").Handler(http.StripPrefix("/apidoc", http.FileServer(&assetfs.AssetFS{
+		Asset:    staticweb.Asset,
+		AssetDir: staticweb.AssetDir,
+		//AssetInfo:	staticweb.AssetInfo,
+	})))
 	router.Use(setupGlobalMiddlewareSwagger)
 	//swagger json返回，(需要通过验证)
 	//router.PathPrefix("/swagger.json").HandlerFunc(SwaggerJson)
@@ -102,7 +109,7 @@ func openApiRulesValidation(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Println("Start validate " + r.RequestURI)
-		router := openapi3filter.NewRouter().WithSwaggerFromFile("./api/swagger.json")
+		router := openapi3filter.NewRouter().WithSwaggerFromFile("./api/swagger.yaml")
 		ctx := context.Background()
 		route, pathParams, isempty := router.FindRoute(r.Method, r.URL)
 		if isempty != nil {
