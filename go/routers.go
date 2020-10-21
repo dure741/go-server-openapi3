@@ -15,8 +15,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/syllabix/swagserver/option"
+	"github.com/syllabix/swagserver/theme"
+
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gorilla/mux"
+	"github.com/syllabix/swagserver"
 )
 
 type Route struct {
@@ -42,8 +46,13 @@ func NewRouter() *mux.Router {
 			Handler(handler)
 	}
 
-	//添加验证
-	router.Use(openApiRulesValidation)
+	//swagger ui使用，先运行swaggerui
+	router.PathPrefix("/apidoc").Handler(http.StripPrefix("/apidoc", http.FileServer(http.Dir("./dist"))))
+	router.Use(setupGlobalMiddlewareSwagger)
+	//swagger json返回，(不通过验证)
+	router.PathPrefix("/swagger.json").HandlerFunc(SwaggerJson)
+	//添加验证，后进行validate
+	//router.Use(openApiRulesValidation)
 	return router
 }
 
@@ -79,6 +88,14 @@ var routes = Routes{
 		"/user_groups",
 		UserGroupsPost,
 	},
+
+	//保留，此声明route会被validate检测
+	// Route{
+	// 	"SwaggerJson",
+	// 	strings.ToUpper("Get"),
+	// 	"/swagger.json",
+	// 	SwaggerJson,
+	// },
 }
 
 func openApiRulesValidation(next http.Handler) http.Handler {
@@ -105,4 +122,14 @@ func openApiRulesValidation(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+//swagger ui 中间件(搭配swagger ui 前端使用)
+func setupGlobalMiddlewareSwagger(handler http.Handler) http.Handler {
+	swagserve := swagserver.New(
+		option.Path("/apidoc"),
+		option.SwaggerSpecURL("/swagger.json"),
+		option.Theme(theme.Material),
+	)
+	return swagserve(handler)
 }
