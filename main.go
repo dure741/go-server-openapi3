@@ -27,6 +27,6 @@ func main() {
 	log.Printf("Server started")
 
 	router := sw.NewRouter()
-	log.Fatal(http.ListenAndServe(":4567", router))
+	log.Fatal(http.ListenAndServe(":9999", router))
 
 }

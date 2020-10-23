@@ -14,6 +14,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 
 	assetfs "github.com/elazarl/go-bindata-assetfs"
@@ -127,7 +129,18 @@ func openApiRulesValidation(next http.Handler) http.Handler {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		next.ServeHTTP(w, r)
+
+		if r.URL.Path == "/swagger.json" {
+			next.ServeHTTP(w, r)
+		} else {
+			//在这里写目标服务器url，完成代理
+			remote, err := url.Parse("http://" + "localhost:4567")
+			if err != nil {
+				panic(err)
+			}
+			proxy := httputil.NewSingleHostReverseProxy(remote)
+			proxy.ServeHTTP(w, r)
+		}
 	})
 }
 
