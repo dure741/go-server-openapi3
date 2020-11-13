@@ -12,7 +12,9 @@ package swagger
 import (
 	"api3server/staticweb"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -122,12 +124,18 @@ func openApiRulesValidation(next http.Handler) http.Handler {
 			Route:      route,
 		}
 		if err := openapi3filter.ValidateRequest(ctx, requestValidationInput); err != nil {
-			msg := "ValidateRequest: " + err.Error()
-			fmt.Println(msg)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			msg := err.Error()
+			e := &ErrorMessage{
+				ErrAPI: route.Path,
+			}
+			fmt.Println(getErrorFirstLine(msg))
+			decodeerr := e.Decode(msg, "./errmsgdef.json")
+			fmt.Println(decodeerr)
+			http.Error(w, decodeerr.Error(), http.StatusBadRequest)
 			return
 		}
 		next.ServeHTTP(w, r)
+		//openapi3filter.ValidationHandler
 	})
 }
 
@@ -140,3 +148,91 @@ func setupGlobalMiddlewareSwagger(handler http.Handler) http.Handler {
 	)
 	return swagserve(handler)
 }
+
+//errmsgdef 用来转换错误信息
+//参数列表：错误信息string
+//返回列表：错误信息string
+func errmsgdef(err string) string {
+	return ""
+}
+
+// # 错误信息：
+// ## 参数
+// ### query
+// ---
+// - 不匹配正则表达式
+// ` Parameter` 'page_num' in ` query` has an error: JSON string doesn't match the ` regular expression` '^x-'
+// - 不合规值
+// ` Parameter` 'page_num' in ` query` has an error: value ssd: an invalid integer: strconv.ParseFloat: parsing "ssd": invalid syntax
+// - 数值超限
+// ` Parameter` 'page_size' in ` query` has an error: ` Number must be most` 23
+// ` Parameter` 'page_size' in ` query` has an error: ` Number must be at least` 10
+// - 缺失查询参数
+// ` Parameter` 'page_num' in ` query` has an error: ` must have a value`: must have a value
+// ### path
+// - 不合规值
+// ` Parameter` 'id' in ` path` has an error: value jfije: an invalid integer: strconv.ParseFloat: parsing "jfije": invalid syntax
+// - 数值超限
+// ` Parameter` 'id' in ` path` has an error: ` Number must be at least` 10
+// ### header
+// ### cookie
+// ## 请求体
+// ### body
+// ---
+// - 键值缺失
+// ` Request body` has an error: doesn't match the schema: Error at "/usergroup_name":` Property` 'usergroup_name' ` is missing`
+// - 不匹配正则表达式
+// ` Request body` has an error: doesn't match the schema: Error at "/usergroup_name":JSON string doesn't match the ` regular expression` '^x-'
+// - 值不为字符串
+// ` Request body` has an error: doesn't match the schema: Error at "/current_user":` Field must be set to` string or not be present
+// - 值不为integer
+// ` Request body` has an error: doesn't match the schema: Error at "/current_user":` Field must be set to` integer or not be present
+// - 数值超限
+// ` Request body` has an error: doesn't match the schema: Error at "/current_user":` Number must be at least` 10
+// ` Request body` has an error: doesn't match the schema: Error at "/current_user":` Number must be most` 23
+// ## 认证策略
+// 暂调研深入
+
+//getErrorFirstLine 获取信息的第一行
+func getErrorFirstLine(all string) string {
+	firstline := strings.Split(all, "\n")[0]
+	return firstline
+}
+
+//ErrorMessage 是用于储存从错误信息中解析到的关键内容
+type ErrorMessage struct {
+	ErrAPI   string      //ErrAPI 出错的接口
+	Location string      //Location 出错的位置 <Paremeter><Request body>
+	ErrorKey string      //ErrorKey 出错的字段
+	Reason   string      //Reason 出错的理由
+	Err      interface{} //Err 自定义的错误信息，通过解析获得，主要返回内容
+}
+
+//Error 用于ErrorMessage实现error接口
+func (e *ErrorMessage) Error() string {
+	return fmt.Sprintf("\"error\": \"%v\"", e.Err)
+}
+
+//Decode 用于ErrorMessage解析提供的配置文件，获取错误信息
+func (e *ErrorMessage) Decode(srcerr string, path string) error {
+	//原先的错误信息长度为0则返回nil
+	if len(srcerr) == 0 {
+		return nil
+	}
+
+	//解析错误信息配置文件
+	errconfig, readErr := ioutil.ReadFile(path)
+	if readErr != nil {
+		return readErr
+	}
+	errconfigjson := make(map[string]interface{})
+	unmarshalErr := json.Unmarshal(errconfig, &errconfigjson)
+	if unmarshalErr != nil {
+		return unmarshalErr
+	}
+	e.Err = errconfigjson["BodyInvalidTpye"]
+	return e
+}
+
+//DecodeSrcError 用于ErrorMessage解析原来的错误信息
+func DecodeSrcError() {}

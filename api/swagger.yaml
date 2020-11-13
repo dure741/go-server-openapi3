@@ -10,9 +10,12 @@ info:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   version: "3.11"
-#servers:
-#- url: http://localhost:4567/
-#- url: https://localhost:4567/
+# servers:
+#   - url: http://localhost:4567
+#   - url: http://127.0.0.1:4567
+#   - url: https://localhost:4567
+# security:
+#   - BasicAuth
 paths:
   /user_groups:
     get:
@@ -25,7 +28,8 @@ paths:
         in: query
         description: 路径参数，请求的页数，int
         schema:
-          type: integer
+          type: string
+          pattern: ^x-
       - name: page_size
         in: query
         description: 路径参数，请求页数包含元素个数
@@ -89,6 +93,7 @@ paths:
               properties:
                 usergroup_name:
                   type: string
+                  pattern: ^x-
                   description: 描述可以写在这里
                 user_authorities:
                   type: string
