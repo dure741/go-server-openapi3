@@ -151,13 +151,6 @@ func setupGlobalMiddlewareSwagger(handler http.Handler) http.Handler {
 	return swagserve(handler)
 }
 
-//errmsgdef 用来转换错误信息
-//参数列表：错误信息string
-//返回列表：错误信息string
-func errmsgdef(err string) string {
-	return ""
-}
-
 // # 错误信息：
 // ## 参数
 // ### query
