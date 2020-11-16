@@ -14,7 +14,7 @@
         ]
     },
 
-    "BodyInvalidTpye":"你的请求体，有个字段类型错啦",
+    "BodyInvalidType":"你的请求体，有个字段类型错啦",
     "BodyMatchRegularExpError":"body有字段不匹配正则",
     "BodyOverLimit":"body有数值超限",
     "BodyKeyMissing":"body少key",

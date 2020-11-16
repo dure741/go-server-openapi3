@@ -13,9 +13,11 @@ import (
 	"api3server/staticweb"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strings"
 
 	assetfs "github.com/elazarl/go-bindata-assetfs"
@@ -219,6 +221,12 @@ func (e *ErrorMessage) Decode(srcerr string, path string) error {
 	if len(srcerr) == 0 {
 		return nil
 	}
+	//解析错误信息
+	decodeerr := e.DecodeSrcError(srcerr)
+	if decodeerr != nil {
+		return decodeerr
+	}
+	fmt.Println(e.ErrAPI, e.Location, e.ErrorKey, e.Reason)
 
 	//解析错误信息配置文件
 	errconfig, readErr := ioutil.ReadFile(path)
@@ -230,9 +238,81 @@ func (e *ErrorMessage) Decode(srcerr string, path string) error {
 	if unmarshalErr != nil {
 		return unmarshalErr
 	}
-	e.Err = errconfigjson["BodyInvalidTpye"]
+	e.Err = errconfigjson[e.Location+e.Reason]
 	return e
 }
 
 //DecodeSrcError 用于ErrorMessage解析原来的错误信息
-func DecodeSrcError() {}
+func (e *ErrorMessage) DecodeSrcError(srcerr string) error {
+	hasAnParamError := regexp.MustCompile(" has an error: ")
+	//确定是参数存在错误，进行后续匹配
+	if len(hasAnParamError.FindAllString(srcerr, -1)) >= 1 {
+		positionMsg := hasAnParamError.Split(srcerr, 2)
+		//错误位置匹配
+		inParameter := regexp.MustCompile("Parameter '")
+		inBody := regexp.MustCompile("Request body")
+		inPath := regexp.MustCompile("' in path")
+		inQuery := regexp.MustCompile("' in query")
+		//Parameter 和 request body公用
+		doesntMatchRegExp := regexp.MustCompile("doesn't match the regular expression")
+		overLimit := regexp.MustCompile("Number must be")
+		//Parameter 错误匹配
+		invalidType := make(map[string]*regexp.Regexp)
+		keyMissing := make(map[string]*regexp.Regexp)
+		invalidType["parameter"] = regexp.MustCompile("invalid syntax")
+		keyMissing["parameter"] = regexp.MustCompile("must have a value")
+		//Body 错误匹配
+		invalidType["body"] = regexp.MustCompile("Field must be set to")
+		keyMissing["body"] = regexp.MustCompile("Property '.+' is missing")
+		//判断出错的位置path|query
+		if len(inParameter.FindAllString(positionMsg[0], -1)) == 1 {
+			if inPath.MatchString(positionMsg[0]) {
+				e.Location = "Path"
+				e.ErrorKey = inPath.ReplaceAllString(inParameter.ReplaceAllString(positionMsg[0], ""), "")
+			} else if inQuery.MatchString(positionMsg[0]) {
+				e.Location = "Query"
+				e.ErrorKey = inQuery.ReplaceAllString(inParameter.ReplaceAllString(positionMsg[0], ""), "")
+			} else {
+				return errors.New("Error in other location in parameter")
+			}
+			//判断错误类型
+			location := "parameter"
+			switch {
+			case doesntMatchRegExp.MatchString(positionMsg[1]):
+				e.Reason = "MatchRegularExpError"
+			case overLimit.MatchString(positionMsg[1]):
+				e.Reason = "OverLimit"
+			case invalidType[location].MatchString(positionMsg[1]):
+				e.Reason = "InvalidType"
+			case keyMissing[location].MatchString(positionMsg[1]):
+				e.Reason = "KeyMissing"
+			default:
+				return errors.New("Unconsitered error type")
+			}
+
+			//判断出错的位置body
+		} else if len(inBody.FindAllString(positionMsg[0], -1)) == 1 {
+			e.Location = "Body"
+			e.ErrorKey = strings.Split(positionMsg[1], "\"")[1]
+			//判断错误类型
+			location := "body"
+			switch {
+			case doesntMatchRegExp.MatchString(positionMsg[1]):
+				e.Reason = "MatchRegularExpError"
+			case overLimit.MatchString(positionMsg[1]):
+				e.Reason = "OverLimit"
+			case invalidType[location].MatchString(positionMsg[1]):
+				e.Reason = "InvalidType"
+			case keyMissing[location].MatchString(positionMsg[1]):
+				e.Reason = "KeyMissing"
+			default:
+				return errors.New("Unconsitered error type")
+			}
+		} else {
+			return errors.New("Source string has more than 1 \"Request body '\" or \"Paramenter '\"")
+		}
+	} else {
+		return errors.New("Source string has more than 1 \" has an error: \"")
+	}
+	return nil
+}
